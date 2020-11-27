@@ -9,7 +9,7 @@ namespace icore {
     public:
         iSocket() : _ip(""), _port(0) {}
         iSocket(std::string ip, const int32_t port) : _ip(ip), _port(port) {}
-    protected:
+
         std::string _ip;
         int32_t _port;
     };
@@ -17,7 +17,8 @@ namespace icore {
     class iPipe {
     public:
         iPipe() {}
-        iPipe(const std::string ip, const int32_t port) : _addr(ip, port) {}
+        iPipe(const std::string ip, const int32_t port) : _addr(ip, port), _fd(-1) {}
+        iPipe(const std::string ip, const int32_t port, const int32_t fd) : _addr(ip, port), _fd(fd) {}
         virtual ~iPipe() {}
         virtual void cache() = 0;
         virtual void load() = 0;
@@ -30,6 +31,7 @@ namespace icore {
         virtual void on_failedconnect() = 0;
     protected:
         iSocket _addr;
+        int32_t _fd;
     };
 
     class iSession {
@@ -63,6 +65,17 @@ namespace icore {
         }
     protected:
         iPipe *_pipe;
+    };
+
+
+    class iCore {
+    public:
+        virtual ~iCore() {}
+
+        virtual bool launch() = 0;
+        virtual bool launch_tcp_server() = 0;
+
+        virtual void loop() = 0;
     };
 
 }
