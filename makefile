@@ -61,7 +61,7 @@ INSTALL_PREFIX = usr/local
 UNAME := $(shell uname -s)
 
 
-SOURCES = main.cpp tassert.cpp global.cpp core.cpp tcp.cpp httpsession.cpp httpserver.cpp
+SOURCES = main.cpp tassert.cpp global.cpp tcp.cpp httpsession.cpp httpserver.cpp
 
 OBJECTS = $(SOURCES:.cpp=.o)
 
