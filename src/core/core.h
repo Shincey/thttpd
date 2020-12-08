@@ -8,8 +8,10 @@ public:
     virtual bool launch();
 
     virtual bool launch_tcp_server();
-    
-    virtual void loop();
+
+    icore::iSession * malloc_session(const std::string ip, const int32_t port);
+
+    //virtual void loop();
 };
 
 #endif // __CORE_H__

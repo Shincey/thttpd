@@ -14,57 +14,42 @@ namespace icore {
         int32_t _port;
     };
 
+    class iSession {
+    public:
+        virtual ~iSession() {}
+        virtual int32_t on_recv(const void* data, int32_t len) = 0;
+        virtual void on_connect() = 0;
+        virtual void on_disconnect() = 0;
+        virtual void on_failedconnect() = 0;
+        virtual void send(const void *data, const int32_t len) = 0;
+        virtual void close() = 0;
+        virtual void load() = 0;
+        virtual void cache() = 0;
+    private:
+        std::string _ip;
+        int32_t _port;
+    };
+
     class iPipe {
     public:
         iPipe() {}
-        iPipe(const std::string ip, const int32_t port) : _addr(ip, port), _fd(-1) {}
-        iPipe(const std::string ip, const int32_t port, const int32_t fd) : _addr(ip, port), _fd(fd) {}
+        iPipe(const std::string ip, const int32_t port) : _addr(ip, port), _fd(-1), _session(nullptr) {}
+        iPipe(const std::string ip, const int32_t port, const int32_t fd) : _addr(ip, port), _fd(fd), _session(nullptr) {}
+        iPipe(const std::string ip, const int32_t port, const int32_t fd, iSession *session) : _addr(ip, port), _fd(fd), _session(session) {}
         virtual ~iPipe() {}
         virtual void cache() = 0;
         virtual void load() = 0;
         virtual void close() = 0;
         virtual void send(const void* data, const int32_t len) = 0;
 
-        virtual void on_recv(const char* data, int32_t len) = 0;
+        virtual int32_t on_recv(const void* data, int32_t len) = 0;
         virtual void on_connect() = 0;
         virtual void on_disconnect() = 0;
         virtual void on_failedconnect() = 0;
     protected:
         iSocket _addr;
         int32_t _fd;
-    };
-
-    class iSession {
-    public:
-        virtual ~iSession() {}
-        iSession() {}
-        virtual void on_recv(const char* data, int32_t len) {
-            if (this && _pipe) { _pipe->on_recv(data, len); }
-        }
-        virtual void on_connect() {
-            if (this && _pipe) { _pipe->on_connect(); }
-        }
-        virtual void on_disconnect() {
-            if (this && _pipe) { _pipe->on_disconnect(); }
-        }
-        virtual void on_failedconnect() {
-            if (this && _pipe) { _pipe->on_failedconnect(); }
-        }
-
-        virtual void send(const void *data, const int32_t len) const {
-            if (this && _pipe) { _pipe->send(data, len); }
-        }
-        virtual void close() const {
-            if (this && _pipe) { _pipe->close(); }
-        }
-        virtual void load() const {
-            if (this && _pipe) { _pipe->load(); }
-        }
-        virtual void cache() const {
-            if (this && _pipe) { _pipe->cache(); }
-        }
-    protected:
-        iPipe *_pipe;
+        iSession * _session;
     };
 
 
@@ -74,6 +59,8 @@ namespace icore {
 
         virtual bool launch() = 0;
         virtual bool launch_tcp_server() = 0;
+
+        virtual iSession * malloc_session(const std::string ip, const int32_t port) = 0;
 
         virtual void loop() = 0;
     };

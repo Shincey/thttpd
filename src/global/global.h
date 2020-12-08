@@ -4,13 +4,14 @@
 #include <stdint.h>
 
 #include "pool.h"
+#include "tcp.h"
+#include "httpsession.h"
 
-int32_t g_epoller_fd = -1;
+extern int32_t g_epoller_fd;
 
-class TCP;
-pool<TCP> g_tcp_pool;
+extern pool<TCP> g_tcp_pool;
 
-
+extern pool<HTTPSession> g_http_session_pool;
 
 
 #endif // __GLOBAL_H__

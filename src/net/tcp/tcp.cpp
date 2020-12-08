@@ -2,10 +2,16 @@
 
 #include "global.h"
 
+#include "httpsession.h"
+
 #include <iostream>
 #include <sys/socket.h>
 
 class TCP;
+
+extern pool<TCP> g_tcp_pool;
+
+extern int32_t g_epoller_fd;
 
 
 Listener::Listener(const std::string ip, const int32_t port, const int32_t rsize, const int32_t ssize)
@@ -40,7 +46,7 @@ void Listener::load() {}
 void Listener::close() {}
 void Listener::send(const void* data, const int32_t len) {}
 
-void Listener::on_recv(const char* data, int32_t len) {}
+int32_t Listener::on_recv(const void* data, int32_t len) {}
 void Listener::on_connect() {}
 void Listener::on_disconnect() {}
 void Listener::on_failedconnect() {}
@@ -81,6 +87,8 @@ void Listener::on_epoll_event(Association * association, const eEpollEventType t
                 tcp = nullptr;
                 continue;
             }
+            tcp->_session = create_from_pool(g_http_session_pool, ip, port);
+            tcp->_connecting = true;
             tcp->on_connect();
         }
     } else {
@@ -90,15 +98,16 @@ void Listener::on_epoll_event(Association * association, const eEpollEventType t
 
 
 
-TCP::TCP() : _sockfd(-1), 
-             _association(eEpollEventType::eIO, this), 
+TCP::TCP() : _association(eEpollEventType::eIO, this), 
              _rbuf(kMAX_BUF_SIZE), 
-             _sbuf(kMAX_BUF_SIZE) {}
+             _sbuf(kMAX_BUF_SIZE),
+             _connecting(false) {}
 
 TCP::TCP(const std::string ip, const int32_t port, const int32_t fd, const int32_t rsize, const int32_t ssize) : iPipe(ip, port, fd),
          _association(eEpollEventType::eIO, this),
          _rbuf(rsize),
-         _sbuf(ssize) {}
+         _sbuf(ssize),
+         _connecting(false) {}
 
 
 void TCP::cache() {
@@ -108,34 +117,62 @@ void TCP::load() {
     
 }
 void TCP::close() {
-    if (_sockfd != -1) {
-        ::close(_sockfd);
-        _sockfd = -1;
-        on_disconnect();
+    if (_fd != -1) {
+        _connecting = false;
+        epoll_ctl(g_epoller_fd, EPOLL_CTL_DEL, _fd, nullptr);
+        ::close(_fd);
+        _fd = -1;
+        if (_session) {
+            _session->on_disconnect();
+            _session = nullptr;
+        }
+        recover_to_pool(g_http_session_pool, (HTTPSession *)this->_session);
+        recover_to_pool(g_tcp_pool, this);
     }
 }
+
 void TCP::send(const void* data, const int32_t len) {
-    if (_sockfd == -1) { return; }
-    {
+    if (!_connecting) { 
+        return;
+    }
+    if (_sbuf.in(data, len)) {
         struct epoll_event ev;
         ev.data.ptr = (void*)&_association;
         ev.events = EPOLLIN | EPOLLOUT;
-        epoll_ctl(1, EPOLL_CTL_MOD, _sockfd, &ev);
+        epoll_ctl(1, EPOLL_CTL_MOD, _fd, &ev);
+    } else {
+        close();
     }
 }
 
-void TCP::on_recv(const char* data, int32_t len) {}
+int32_t TCP::on_recv(const void* data, int32_t len) {
+    if (_session) {
+        return _session->on_recv(data, len);
+    }
+    return 0;
+}
 
 void TCP::on_connect() {
+    if (_session) {
+        _session->on_connect();
+    }
     std::cout << "tcp connection established." << std::endl;
     std::cout << "peer ip: " << this->_addr._ip << std::endl;
     std::cout << "peer port: " << this->_addr._port << std::endl;
     std::cout << "socket fd: " << this->_fd << std::endl;
 }
 
-void TCP::on_disconnect() {}
+void TCP::on_disconnect() {
+    if (_session) {
+        _session->on_disconnect();
+    }
+}
 
-void TCP::on_failedconnect() {}
+void TCP::on_failedconnect() {
+    if (_session) {
+        _session->on_failedconnect();
+    }
+}
 
 void TCP::on_epoll_event(Association * association, const eEpollEventType type, const struct epoll_event &event) {
     switch (type) {
@@ -155,24 +192,28 @@ void TCP::on_epoll_event(Association * association, const eEpollEventType type, 
 
 void tcp_connect_handler(TCP * tcp, Association * association, const eEpollEventType type, const struct epoll_event &event) {
     auto clear = [&] () {
-        ::close(tcp->_sockfd);
-        tcp->_sockfd = -1;
+        ::close(tcp->_fd);
+        tcp->_fd = -1;
+        tcp->_session ? (void)0 : tcp->on_failedconnect();
+        recover_to_pool(g_tcp_pool, tcp);
     };
 
-    if (-1 == settcpnodelay(tcp->_sockfd)) {
+    if (-1 == settcpnodelay(tcp->_fd)) {
         clear();
         return;
     }
-    epoll_ctl(1, EPOLL_CTL_DEL, tcp->_sockfd, nullptr);
+
+    epoll_ctl(1, EPOLL_CTL_DEL, tcp->_fd, nullptr);
     if (event.events & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
         clear();
         return;
     }
+
     if (event.events & EPOLLOUT) {
         struct epoll_event ev;
         ev.data.ptr = (void *)&tcp->_association;
         ev.events = EPOLLIN;
-        if (-1 == epoll_ctl(1, EPOLL_CTL_ADD, tcp->_sockfd, &ev)) {
+        if (-1 == epoll_ctl(1, EPOLL_CTL_ADD, tcp->_fd, &ev)) {
             clear();
             return;
         }
@@ -190,6 +231,7 @@ void tcp_io_handler(TCP * tcp, Association * association, const eEpollEventType 
         ::close(tcp->_fd);
         tcp->_fd = -1;
         tcp->on_disconnect();
+        recover_to_pool(g_http_session_pool, (HTTPSession *)tcp->_session);
         recover_to_pool(g_tcp_pool, tcp);
     };
     if (ev.events & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
@@ -204,10 +246,47 @@ void tcp_io_handler(TCP * tcp, Association * association, const eEpollEventType 
                     if (len > 0) {
                         if (tcp->_rbuf.in(tmp, len)) {
                             while (tcp->_rbuf.length() > 0) {
-                                int32_t use = tcp->on_recv(tcp->_rbuf->data(), tcp->_rbuf.length());
+                                int32_t use = tcp->on_recv(tcp->_rbuf.data(), tcp->_rbuf.length());
+                                if (!tcp->_connecting) {
+                                    epoll_ctl(g_epoller_fd, EPOLL_CTL_DEL, tcp->_fd, nullptr);
+                                    error_handler();
+                                    return;
+                                }
+                                if (use <= 0) {
+                                    return;
+                                }
+                                tcp->_rbuf.out(use);
                             }
+                        } else {
+                            tcp->close();
+                            return;
                         }
+                    } else if (len < 0 && EAGAIN == errno) {
+                        return;
+                    } else {
+                        tcp->close();
+                        return;
                     }
+                } while (tcp->_connecting && tool::microseconds() - tick <= 1000);
+            }
+        }
+
+        if (ev.events & EPOLLOUT) {
+            int32_t len = ::send(tcp->_fd, tcp->_sbuf.data(), tcp->_sbuf.length(), 0);
+            if (len > 0) {
+                tcp->_sbuf.out(len);
+                if (tcp->_sbuf.length() == 0) {
+                    struct epoll_event ev;
+                    ev.data.ptr = (void *)&tcp->_association;
+                    ev.events = EPOLLIN;
+                    if (-1 == epoll_ctl(g_epoller_fd, EPOLL_CTL_MOD, tcp->_fd, &ev)) {
+                        epoll_ctl(g_epoller_fd, EPOLL_CTL_DEL, tcp->_fd, nullptr);
+                        error_handler();
+                        return;
+                    }
+                } else if (len <= 0 && EAGAIN != errno) {
+                    epoll_ctl(g_epoller_fd, EPOLL_CTL_DEL, tcp->_fd, nullptr);
+                    error_handler();
                 }
             }
         }

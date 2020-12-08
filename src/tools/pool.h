@@ -1,7 +1,9 @@
 #ifndef __POOL_H__
 #define __POOL_H__
 
+#include "tassert.h"
 #include "tools.h"
+
 
 
 template <typename __T, int32_t __list_nums__ = 1, int32_t __chunk_nums__ = 64>
@@ -73,7 +75,7 @@ private:
     void init_pool(int32_t __list_nums) {
         for (int i = 0; i < __list_nums; ++i) {
             ChunkList *list = (ChunkList *)malloc(sizeof(ChunkList));
-            zassert(list != nullptr, "malloc for new ChunkList failed");
+            tassert(list != nullptr, "malloc for new ChunkList failed");
             init_chunk_list(list);
 
             list->next = list_head_;
@@ -99,7 +101,7 @@ private:
 
     inline void free_chunk_list(ChunkList *__list) {
         for (int i = 0; i < __chunk_nums__; ++i) {
-            zassert(__list->chunks[i].state == CHUNK_STATE::FREEING, "freed ChunkList but its Chunk is not free");
+            tassert(__list->chunks[i].state == CHUNK_STATE::FREEING, "freed ChunkList but its Chunk is not free");
             remove(&(__list->chunks[i]));
         }
         if (__list->next != nullptr) { __list->next->prev = __list->prev; }
@@ -117,15 +119,15 @@ private:
         if (head_ == nullptr) { init_pool(1); }
         ret = head_;
         remove(head_);
-        zassert(ret->state == CHUNK_STATE::FREEING && ret->len == sizeof(struct Chunk), "Chunk invalid");
+        tassert(ret->state == CHUNK_STATE::FREEING && ret->len == sizeof(struct Chunk), "Chunk invalid");
         ++ret->parent->count;
         ret->state = CHUNK_STATE::USING;
         return ret;
     }
 
     void recover(Chunk *__chunk) {
-        zassert(__chunk->state == CHUNK_STATE::USING && __chunk->len == sizeof(struct Chunk), "Chunk invalid");
-        zassert(__chunk->parent->count > 0, "ChunkList error");
+        tassert(__chunk->state == CHUNK_STATE::USING && __chunk->len == sizeof(struct Chunk), "Chunk invalid");
+        tassert(__chunk->parent->count > 0, "ChunkList error");
         --__chunk->parent->count;
         __chunk->state = CHUNK_STATE::FREEING;
         if (__chunk->parent->count == 0 && list_count_ > __list_nums__) { free_chunk_list(__chunk->parent); }

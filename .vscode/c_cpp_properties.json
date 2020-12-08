@@ -3,13 +3,21 @@
         {
             "name": "Linux",
             "includePath": [
-                "${workspaceFolder}/**"
+                "${workspaceFolder}/**",
+                "./src/core"
             ],
-            "defines": ["DEBUG"],
-            "compilerPath": "/usr/bin/clang",
+            "defines": [
+                "DEBUG"
+            ],
+            "compilerPath": "/usr/bin/g++",
             "cStandard": "c11",
             "cppStandard": "c++17",
-            "intelliSenseMode": "clang-x64"
+            "intelliSenseMode": "clang-x64",
+            "compilerArgs": [
+                "-std=c++17",
+                "-O3",
+                "-g"
+            ]
         }
     ],
     "version": 4

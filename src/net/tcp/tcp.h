@@ -17,7 +17,7 @@ public:
     virtual void close();
     virtual void send(const void* data, const int32_t len);
 
-    virtual void on_recv(const char* data, int32_t len);
+    virtual int32_t on_recv(const void* data, int32_t len);
     virtual void on_connect();
     virtual void on_disconnect();
     virtual void on_failedconnect();
@@ -39,7 +39,7 @@ public:
     virtual void close();
     virtual void send(const void* data, const int32_t len);
 
-    virtual void on_recv(const char* data, int32_t len);
+    virtual int32_t on_recv(const void* data, int32_t len);
     virtual void on_connect();
     virtual void on_disconnect();
     virtual void on_failedconnect();
@@ -58,12 +58,10 @@ private:
     friend pool<TCP>;
 
 private:
-    int32_t _sockfd;
-
     Association _association;
-
     buffer _rbuf;
     buffer _sbuf;
+    bool _connecting;
 };
 
 #endif //__TCP_H__
