@@ -13,9 +13,12 @@ namespace icore {
         std::string _ip;
         int32_t _port;
     };
+    
+    class iPipe;
 
     class iSession {
     public:
+        iSession(const std::string ip, const int32_t port) : _ip(ip), _port(port), _pipe(nullptr) {}
         virtual ~iSession() {}
         virtual int32_t on_recv(const void* data, int32_t len) = 0;
         virtual void on_connect() = 0;
@@ -25,9 +28,12 @@ namespace icore {
         virtual void close() = 0;
         virtual void load() = 0;
         virtual void cache() = 0;
-    private:
+
+        virtual void malloc_pipe(iPipe *pipe) = 0;
+    protected:
         std::string _ip;
         int32_t _port;
+        iPipe * _pipe;
     };
 
     class iPipe {

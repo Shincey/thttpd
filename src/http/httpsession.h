@@ -15,9 +15,8 @@ public:
         virtual void close();
         virtual void load();
         virtual void cache();
-private:
-        std::string _ip;
-        int32_t _port;
+
+        virtual void malloc_pipe(icore::iPipe *pipe);
 };
 
 #endif // __HTTPSESSION_H__

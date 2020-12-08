@@ -88,6 +88,7 @@ void Listener::on_epoll_event(Association * association, const eEpollEventType t
                 continue;
             }
             tcp->_session = create_from_pool(g_http_session_pool, ip, port);
+            tcp->_session->malloc_pipe(tcp);
             tcp->_connecting = true;
             tcp->on_connect();
         }
@@ -124,7 +125,6 @@ void TCP::close() {
         _fd = -1;
         if (_session) {
             _session->on_disconnect();
-            _session = nullptr;
         }
         recover_to_pool(g_http_session_pool, (HTTPSession *)this->_session);
         recover_to_pool(g_tcp_pool, this);
@@ -132,14 +132,15 @@ void TCP::close() {
 }
 
 void TCP::send(const void* data, const int32_t len) {
-    if (!_connecting) { 
+    printf("in tcp send\n");
+    if (!_connecting) {
         return;
     }
     if (_sbuf.in(data, len)) {
         struct epoll_event ev;
         ev.data.ptr = (void*)&_association;
         ev.events = EPOLLIN | EPOLLOUT;
-        epoll_ctl(1, EPOLL_CTL_MOD, _fd, &ev);
+        epoll_ctl(g_epoller_fd, EPOLL_CTL_MOD, _fd, &ev);
     } else {
         close();
     }
@@ -203,7 +204,7 @@ void tcp_connect_handler(TCP * tcp, Association * association, const eEpollEvent
         return;
     }
 
-    epoll_ctl(1, EPOLL_CTL_DEL, tcp->_fd, nullptr);
+    epoll_ctl(g_epoller_fd, EPOLL_CTL_DEL, tcp->_fd, nullptr);
     if (event.events & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
         clear();
         return;
@@ -213,7 +214,7 @@ void tcp_connect_handler(TCP * tcp, Association * association, const eEpollEvent
         struct epoll_event ev;
         ev.data.ptr = (void *)&tcp->_association;
         ev.events = EPOLLIN;
-        if (-1 == epoll_ctl(1, EPOLL_CTL_ADD, tcp->_fd, &ev)) {
+        if (-1 == epoll_ctl(g_epoller_fd, EPOLL_CTL_ADD, tcp->_fd, &ev)) {
             clear();
             return;
         }
@@ -235,7 +236,7 @@ void tcp_io_handler(TCP * tcp, Association * association, const eEpollEventType 
         recover_to_pool(g_tcp_pool, tcp);
     };
     if (ev.events & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
-        error_handler();
+        tcp->close();
     } else {
         if (ev.events & EPOLLIN) {
             static char tmp[2048];
@@ -248,8 +249,9 @@ void tcp_io_handler(TCP * tcp, Association * association, const eEpollEventType 
                             while (tcp->_rbuf.length() > 0) {
                                 int32_t use = tcp->on_recv(tcp->_rbuf.data(), tcp->_rbuf.length());
                                 if (!tcp->_connecting) {
-                                    epoll_ctl(g_epoller_fd, EPOLL_CTL_DEL, tcp->_fd, nullptr);
-                                    error_handler();
+                                    // epoll_ctl(g_epoller_fd, EPOLL_CTL_DEL, tcp->_fd, nullptr);
+                                    // error_handler();
+                                    tcp->close();
                                     return;
                                 }
                                 if (use <= 0) {
@@ -280,13 +282,15 @@ void tcp_io_handler(TCP * tcp, Association * association, const eEpollEventType 
                     ev.data.ptr = (void *)&tcp->_association;
                     ev.events = EPOLLIN;
                     if (-1 == epoll_ctl(g_epoller_fd, EPOLL_CTL_MOD, tcp->_fd, &ev)) {
-                        epoll_ctl(g_epoller_fd, EPOLL_CTL_DEL, tcp->_fd, nullptr);
-                        error_handler();
+                        //epoll_ctl(g_epoller_fd, EPOLL_CTL_DEL, tcp->_fd, nullptr);
+                        //error_handler();
+                        tcp->close();
                         return;
                     }
                 } else if (len <= 0 && EAGAIN != errno) {
-                    epoll_ctl(g_epoller_fd, EPOLL_CTL_DEL, tcp->_fd, nullptr);
-                    error_handler();
+                    //epoll_ctl(g_epoller_fd, EPOLL_CTL_DEL, tcp->_fd, nullptr);
+                    //error_handler();
+                    tcp->close();
                 }
             }
         }
