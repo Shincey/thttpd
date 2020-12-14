@@ -68,6 +68,61 @@ namespace tool {
         return strtime;
     }
 
+    inline std::string strip(const std::string &str, char ch=' ') {
+        if (str.empty()) return std::string();
+        int i = 0, j = str.size() - 1;
+        while (str[i] == ch) i++;
+        while (str[j] == ch) j--;
+        if (i > j) return std::string();
+        return str.substr(i, j - i + 1);
+    }
+
+    inline std::vector<std::string> split(const std::string &str, const std::string delimiter) {
+        if (str.empty()) return {};
+        std::vector<std::string> res;
+        std::string strs = str + delimiter;
+        size_t pos = strs.find(delimiter);
+        size_t len = strs.size();
+        while (pos != std::string::npos) {
+            std::string x = strs.substr(0, pos);
+            if (x != "") res.push_back(x);
+            strs = strs.substr(pos + delimiter.size(), len);
+            pos = strs.find(delimiter);
+        }
+        return res;
+    }
+
+    inline std::string itos(const int32_t val) {
+        char str[128] = {0};
+        snprintf(str, sizeof(str), "%d", val);
+        return std::string(str);
+    }
+
+    inline std::string ftos(const double val) {
+        char str[128] = {0};
+        snprintf(str, sizeof(str), "%f", val);
+        return std::string(str);
+    }
+
+    inline std::string& operator<<(std::string &target, const std::string &val) {
+        target += val;
+        return target;
+    }
+
+    inline std::string& operator<<(std::string &target, const char *val) {
+        target += std::string(val);
+        return target;
+    }
+
+    inline std::string& operator<<(std::string &target, const int32_t val) {
+        target += itos(val);
+        return target;
+    }
+
+    inline std::string& operator<<(std::string &target, const double val) {
+        target += ftos(val);
+        return target;
+    }
 }
 
 #endif // __TOOLS_H__

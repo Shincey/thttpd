@@ -132,7 +132,6 @@ void TCP::close() {
 }
 
 void TCP::send(const void* data, const int32_t len) {
-    printf("in tcp send\n");
     if (!_connecting) {
         return;
     }
@@ -154,13 +153,13 @@ int32_t TCP::on_recv(const void* data, int32_t len) {
 }
 
 void TCP::on_connect() {
-    if (_session) {
-        _session->on_connect();
-    }
     std::cout << "tcp connection established." << std::endl;
     std::cout << "peer ip: " << this->_addr._ip << std::endl;
     std::cout << "peer port: " << this->_addr._port << std::endl;
     std::cout << "socket fd: " << this->_fd << std::endl;
+    if (_session) {
+        _session->on_connect();
+    }
 }
 
 void TCP::on_disconnect() {

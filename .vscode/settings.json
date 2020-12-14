@@ -44,6 +44,10 @@
         "chrono": "cpp",
         "cstring": "cpp",
         "ctime": "cpp",
-        "ratio": "cpp"
+        "ratio": "cpp",
+        "cwctype": "cpp",
+        "iostream": "cpp",
+        "istream": "cpp",
+        "ostream": "cpp"
     }
 }
